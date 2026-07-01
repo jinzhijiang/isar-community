@@ -4,6 +4,10 @@ version = "0.0.0"
 authors = ["Simon Leier <simonleier@gmail.com>"]
 edition = "2021"
 
+[features]
+# Forward the OpenHarmony (ohos) build feature to isar-core. Set by tool/build_ohos.sh.
+ohos = ["isar-core/ohos"]
+
 [dependencies]
 isar-core = { path = "../isar_core" }
 threadpool = "1.8.1"

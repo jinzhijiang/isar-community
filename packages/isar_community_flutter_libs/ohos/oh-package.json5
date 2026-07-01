@@ -1,0 +1,12 @@
+{
+  "name": "isar_community_flutter_libs",
+  "version": "1.0.0",
+  "description": "Isar Core binaries for the Isar Database",
+  "main": "index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/flutter_ohos": "file:libs/flutter.har"
+  }
+}
+

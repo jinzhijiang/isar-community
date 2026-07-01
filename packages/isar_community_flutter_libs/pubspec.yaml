@@ -18,6 +18,7 @@ platforms:
   linux:
   macos:
   windows:
+  ohos:
 
 dependencies:
   flutter:
@@ -37,6 +38,9 @@ flutter:
       linux:
         pluginClass: IsarFlutterLibsPlugin
       windows:
+        pluginClass: IsarFlutterLibsPlugin
+      ohos:
+        package: dev.isar.isar_flutter_libs
         pluginClass: IsarFlutterLibsPlugin
 
 dependency_overrides:

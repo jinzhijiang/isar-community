@@ -31,6 +31,14 @@ impl Env {
                 max_dbs as u64,
             ))?;
 
+            // OpenHarmony (ohos) compatibility — enabled via the `ohos` cargo feature
+            // (set by tool/build_ohos.sh). Other platforms keep the upstream flags.
+            // ohos: drop MDBX_COALESCE (needs specific filesystem features), keep the
+            // single-file MDBX_NOSUBDIR mode, add MDBX_WRITEMAP + MDBX_LIFORECLAIM.
+            #[cfg(feature = "ohos")]
+            let mut flags =
+                ffi::MDBX_NOTLS | ffi::MDBX_NOSUBDIR | ffi::MDBX_WRITEMAP | ffi::MDBX_LIFORECLAIM;
+            #[cfg(not(feature = "ohos"))]
             let mut flags = ffi::MDBX_NOTLS | ffi::MDBX_COALESCE | ffi::MDBX_NOSUBDIR;
             if relaxed_durability {
                 flags |= ffi::MDBX_NOMETASYNC;
@@ -41,6 +49,11 @@ impl Env {
             let mut err_code = 0;
             for i in 0..9 {
                 let max_size_i = (max_size - i * (max_size / 10)).clamp(10 * MIB, isize::MAX);
+                // OHOS needs an explicit 4096 page size; other platforms auto-detect (-1).
+                #[cfg(feature = "ohos")]
+                let pagesize: isize = 4096;
+                #[cfg(not(feature = "ohos"))]
+                let pagesize: isize = -1;
                 mdbx_result(ffi::mdbx_env_set_geometry(
                     env,
                     MIB,
@@ -48,7 +61,7 @@ impl Env {
                     max_size_i,
                     5 * MIB,
                     20 * MIB,
-                    -1,
+                    pagesize,
                 ))?;
 
                 err_code = ENV_OPEN(env, path.as_ptr(), flags, 0o600);

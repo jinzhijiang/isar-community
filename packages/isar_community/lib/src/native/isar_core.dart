@@ -64,7 +64,8 @@ FutureOr<void> initializeCoreBinary({
   try {
     _initializePath(libraryPath);
   } catch (e) {
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    // Ohos uses the same library loading mechanism as Android
+    if (!Platform.isAndroid && !Platform.isIOS && !isOhos()) {
       final downloadPath = _getLibraryDownloadPath(libraries);
       if (download) {
         return _downloadIsarCore(downloadPath).then((value) {
@@ -75,14 +76,28 @@ FutureOr<void> initializeCoreBinary({
         _initializePath(downloadPath);
       }
     } else {
-      throw IsarError(
-        'Could not initialize IsarCore library for processor architecture '
-        '"${Abi.current()}". If you create a Flutter app, make sure to add '
-        'isar_community_flutter_libs to your dependencies.\n$e',
-      );
+      // For ohos, provide more detailed error information
+      String errorMessage =
+          'Could not initialize IsarCore library for processor architecture '
+          '"${Abi.current()}". If you create a Flutter app, make sure to add '
+          'isar_community_flutter_libs to your dependencies.\n';
+
+      if (isOhos()) {
+        errorMessage += '\n⚠️ OpenHarmony Compatibility Issue:\n'
+            'The libisar.so library may be compiled for Android and is not compatible with OpenHarmony.\n'
+            'Error details: $e\n\n'
+            'Possible solutions:\n'
+            '1. Ensure libisar.so is compiled for OpenHarmony (not Android)\n'
+            '2. Check if the library file exists at: $libraryPath\n'
+            '3. Verify the library is compatible with OpenHarmony\'s system libraries\n';
+      }
+
+      throw IsarError(errorMessage + '\n$e');
     }
   }
 }
+
+bool isOhos() => Platform.operatingSystem == 'ohos';
 
 void _initializePath(String? libraryPath) {
   late DynamicLibrary dylib;
@@ -205,6 +220,16 @@ extension PointerX on Pointer {
 
 extension on Abi {
   String get localName {
+    // Check if running on ohos platform first
+    if (isOhos()) {
+      // Ohos uses libisar.so (same as Android)
+      return 'libisar.so';
+    }
+
+    if (Platform.isMacOS) {
+      return 'libisar.dylib';
+    }
+
     switch (Abi.current()) {
       case Abi.androidArm:
       case Abi.androidArm64:

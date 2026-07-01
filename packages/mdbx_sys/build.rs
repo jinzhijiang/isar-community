@@ -78,6 +78,25 @@ fn ensure_libmdbx(out_dir: &Path) -> PathBuf {
         panic!("git clone of libmdbx failed with status: {}", status);
     }
 
+    // Patch libmdbx for OpenHarmony: disable robust mutex functions
+    if env::var("OHOS_NDK_HOME").is_ok() || env::var("CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER").map(|s| s.contains("ohos")).unwrap_or(false) {
+        let lck_posix_path = libmdbx_dir.join("src").join("lck-posix.c");
+        if lck_posix_path.exists() {
+            let content = fs::read_to_string(&lck_posix_path).expect("Failed to read lck-posix.c");
+            // Replace the problematic code sections with stubs
+            let patched = content
+                .replace(
+                    "rc = pthread_mutexattr_setrobust(&ma, PTHREAD_MUTEX_ROBUST);",
+                    "// rc = pthread_mutexattr_setrobust(&ma, PTHREAD_MUTEX_ROBUST); // Disabled for OpenHarmony\n  rc = 0;"
+                )
+                .replace(
+                    "int mreco_rc = pthread_mutex_consistent(ipc);",
+                    "// int mreco_rc = pthread_mutex_consistent(ipc); // Disabled for OpenHarmony\n    int mreco_rc = 0;"
+                );
+            fs::write(&lck_posix_path, patched).expect("Failed to patch lck-posix.c");
+        }
+    }
+
     libmdbx_dir
 }
 
@@ -185,6 +204,29 @@ fn main() {
     if target_os == "android" {
         cc_builder.define("MDBX_HAVE_BUILTIN_CPU_SUPPORTS", "0");
         cc_builder.define("MDBX_ENV_CHECKPID", "0");
+    }
+    
+    // OpenHarmony doesn't support pthread_mutexattr_setrobust and pthread_mutex_consistent
+    // Let MDBX auto-detect locking mode, but disable robust mutex at compile time
+    if env::var("OHOS_NDK_HOME").is_ok() || env::var("CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER").map(|s| s.contains("ohos")).unwrap_or(false) {
+        cc_builder.define("MDBX_HAVE_BUILTIN_CPU_SUPPORTS", "0");
+        cc_builder.define("MDBX_ENV_CHECKPID", "0");
+        // Disable robust mutex features which are not supported on OHOS
+        cc_builder.define("MDBX_HAVE_PTHREAD_MUTEXATTR_SETROBUST", "0");
+        
+        // Patch api-env.c to bypass Linux kernel version check for OHOS
+        // OHOS may not report a valid kernel version via uname()
+        let api_env_path = libmdbx_dir.join("src").join("api-env.c");
+        if api_env_path.exists() {
+            let content = fs::read_to_string(&api_env_path).expect("Failed to read api-env.c");
+            // Comment out the kernel version check for OHOS
+            let patched = content
+                .replace(
+                    "if (unlikely(globals.linux_kernel_version < 0x03100000)) {",
+                    "if (0 /* OHOS: kernel version check disabled */ && unlikely(globals.linux_kernel_version < 0x03100000)) {"
+                );
+            fs::write(&api_env_path, patched).expect("Failed to patch api-env.c");
+        }
     }
 
     if target.contains("windows") {

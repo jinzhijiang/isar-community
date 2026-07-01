@@ -4,6 +4,11 @@ version = "0.0.0"
 authors = ["Simon Leier <simonleier@gmail.com>"]
 edition = "2021"
 
+[features]
+# OpenHarmony (ohos) build tweaks for MDBX flags / page size (see src/mdbx/env.rs).
+# Enabled by tool/build_ohos.sh via `--features ohos`; off for all other platforms.
+ohos = []
+
 [dependencies]
 itertools = "0.10.3"
 enum_dispatch = "0.3.8"
