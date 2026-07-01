@@ -110,7 +110,17 @@ void _initializePath(String? libraryPath) {
   final bindings = IsarCoreBindings(dylib);
 
   final coreVersion = bindings.isar_version().cast<Utf8>().toDartString();
-  if (coreVersion != Isar.version && coreVersion != 'debug') {
+  // Compare only major.minor: patch releases (e.g. 3.3.0 vs 3.3.2) share the
+  // same FFI/binding ABI, so a prebuilt core that differs only in the patch
+  // number is accepted. This lets isar_community_flutter_libs ship pinned core
+  // binaries (including the OpenHarmony build) without lockstep patch bumps.
+  String majorMinor(String v) {
+    final parts = v.split('.');
+    return parts.length >= 2 ? '${parts[0]}.${parts[1]}' : v;
+  }
+
+  if (majorMinor(coreVersion) != majorMinor(Isar.version) &&
+      coreVersion != 'debug') {
     throw IsarError(
       'Incorrect Isar Core version: Required ${Isar.version} found '
       '$coreVersion. Make sure to use the latest '
